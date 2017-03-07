@@ -1,0 +1,112 @@
+#-*-  coding:gbk  -*-
+import urllib.request
+import time,os
+import numpy as np
+from bs4 import BeautifulSoup
+
+hds=[{'User-Agent': 'Mozilla/5.0 (Windows; U;Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'}, \
+     {'User-Agent': 'Mozilla/5.0 (Windows NT 6.2) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.12 Safari/535.11'}, \
+     {'User-Agent': 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)'}]
+
+
+def search(value,page):
+
+    url='http://so.gushiwen.org/search.aspx?type=author&page='+urllib.request.quote(str(page))+'&value='+urllib.request.quote(value)
+    #拼接url使用urllib.request.quote（）把汉字和数字拼接到url里
+    time.sleep(np.random.rand() * 2)#随机等一段时间再进行访问
+    try:
+        req=urllib.request.Request(url,headers=hds[page%3])
+        html_resource=urllib.request.urlopen(req)
+        # print(html_resource.info()) 输出服务器信息
+        plain_text=html_resource.read().decode()
+        return plain_text
+
+    except (urllib.request.HTTPError,urllib.request.URLError) as e:
+        print(e)
+
+def rmline(str):
+    #这是一个去除字符串中的空行的函数
+    data=''
+    for line in str:
+        l=line.strip()
+        if len(l)!=0:
+            data+=l
+    return data
+
+def getpoemMessage(poem_id,page):
+    url = 'http://so.gushiwen.org/shiwen/ajaxshiwen.aspx?id=' + poem_id + '&from=search'
+    print(url)
+    time.sleep(np.random.rand() * 1)  # 随机等一段时间再进行访问
+    try:
+        req=urllib.request.Request(url,headers=hds[page%3])
+        html_resource=urllib.request.urlopen(req)
+        # print(html_resource.info()) 输出服务器信息
+        plain_text=html_resource.read().decode()
+        return plain_text
+    except (urllib.request.HTTPError,urllib.request.URLError) as e:
+        print(e)
+
+def parse_poem(html):
+
+    soup=BeautifulSoup(html,'lxml')
+    if (soup.find('title')):
+        pass
+    else:
+        poem_title = soup.p
+        poem_title_str = poem_title.a.string
+        poem_author = poem_title.next_sibling.next_sibling
+        poem_author_str = poem_author.string.split(u'\xa0')[0]
+        # 注意gbk无法识别u'\xa0'编码，他的意思为空格
+        poem_text = list(soup.div.next_sibling.next_sibling.strings)
+        poem_text_str = ''
+        for text in list(soup.div.next_sibling.next_sibling.strings)[6:-2]:
+            poem_text_str += text + '\n'
+        with open('poem2.txt', mode='a', encoding='utf-8') as f:
+            f.write('题目： ' + rmline(poem_title_str) + '\n')
+            f.write(poem_author_str + '\n')
+            f.write('内容： ' + poem_text_str + '\n')
+            f.write('-----------------------------------------' + '\n')
+
+
+
+
+def parseHtml(html,page):
+
+    # soup=BeautifulSoup(html,'lxml')
+    # title=soup.title#获取网页title
+    # title_name=title.name#获取title的名字 也就是标签的名字
+    # title_string=title.string#获取title的值
+    # title_parent=soup.title.parent#title的父对象
+    #
+    # soup.p#获取第一个p标签
+    # soup.p['class']#获取第一个p标签里面的class值
+    #
+    # soup.find_all('a')#找到所有的a标签
+    # soup.find(id='***')#获取id为***的标签
+    soup=BeautifulSoup(html,'lxml')
+    with open('poem2.txt',mode='a',encoding='utf-8') as f:
+        f.write('第'+str(page)+'页'+'\n')
+
+    if page==1:
+        for poem in soup.find_all("div", "sons")[1:]:
+            print(poem['id'])
+            id=poem['id'][11:]
+            parse_poem(getpoemMessage(id,page))
+
+    else:
+        for poem in soup.find_all("div", "sons"):
+            print(poem['id'])
+            id = poem['id'][11:]
+            parse_poem(getpoemMessage(id, page))
+
+
+
+
+if __name__=="__main__":
+    filename = 'poem2.txt'
+    if os.path.exists(filename):
+        os.remove(filename)
+    for page in range(1,3):
+        #1，4是指页数，也就是下载前三页数据。下面的作者名字可以随意改，或者写诗的名字也可以
+        parseHtml(search('纳兰性德',page), page)
+
